@@ -85,8 +85,13 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
     const textToSend = text;
 
     try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Neural Link Offline: Key configuration missing.");
+      }
+
       // Initialize AI right before call to ensure latest context/key
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       // Build history
       const conversationHistory = messages.map(m => {
@@ -116,7 +121,7 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
 
       // Using the models.generateContent API from the @google/genai skill
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-1.5-flash',
         contents,
         config: {
           systemInstruction: systemInstruction,
@@ -124,7 +129,7 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
         }
       });
 
-      const responseText = response.text || "Sorry, no response from the model.";
+      const responseText = response.text || "Neural Link Offline: Assessment data not received.";
 
       setMessages(prev => [...prev, { role: 'model', content: responseText }]);
       
@@ -149,7 +154,13 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
 
     } catch (error: any) {
       console.error("Neural Link Error:", error);
-      setMessages(prev => [...prev, { role: 'model', content: "Neural Link Offline: Communication interrupted. (Please ensure API Key is active)" }]);
+      let errorMessage = "Neural Link Offline: Connection to the Agency assessment module interrupted. Please ensure your network signal is stable.";
+      
+      if (error.message.includes("Key configuration missing")) {
+        errorMessage = "Neural Link Offline: Key Configuration Missing. Please ensure the Agency Credentials are set in the platform secrets.";
+      }
+
+      setMessages(prev => [...prev, { role: 'model', content: errorMessage }]);
     } finally {
       setIsLoading(false);
     }
