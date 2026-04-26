@@ -16,35 +16,6 @@ async function startServer() {
 
   app.use(express.json({ limit: '10mb' }));
 
-  // AI Proxy Endpoint
-  app.post("/api/chat", async (req, res) => {
-    try {
-      const { contents, systemInstruction } = req.body;
-      const apiKey = process.env.GEMINI_API_KEY;
-
-      if (!apiKey) {
-        console.error("Missing GEMINI_API_KEY in environment.");
-        return res.status(500).json({ error: "Neural Link Offline: Key Configuration Missing." });
-      }
-
-      const genAI = new GoogleGenAI({ apiKey });
-      const response = await genAI.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.7,
-        }
-      });
-
-      const text = response.text || "Neural Link Offline: Empty response.";
-      res.json({ text });
-    } catch (error: any) {
-      console.error("Proxy Error:", error);
-      res.status(500).json({ error: error.message || "Neural interference detected." });
-    }
-  });
-
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

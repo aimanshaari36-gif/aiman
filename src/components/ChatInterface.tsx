@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { GoogleGenAI } from '@google/genai';
 
 interface Message {
   role: 'user' | 'model';
@@ -81,8 +82,12 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
     }
     
     setIsLoading(true);
+    const textToSend = text;
 
     try {
+      // Initialize AI right before call to ensure latest context/key
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
       // Build history
       const conversationHistory = messages.map(m => {
         const parts: any[] = [{ text: m.content }];
@@ -97,7 +102,7 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
         return { role: m.role, parts };
       });
 
-      const userParts: any[] = [{ text }];
+      const userParts: any[] = [{ text: textToSend }];
       if (currentImage) {
         userParts.push({
           inlineData: {
@@ -109,20 +114,17 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
 
       const contents = [...conversationHistory, { role: 'user', parts: userParts }];
 
-      // Fetch from our server proxy
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents, systemInstruction })
+      // Using the models.generateContent API from the @google/genai skill
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents,
+        config: {
+          systemInstruction: systemInstruction,
+          temperature: 0.7,
+        }
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Connection failed');
-      }
-
-      const data = await response.json();
-      const responseText = data.text || "Sorry, no response from the model.";
+      const responseText = response.text || "Sorry, no response from the model.";
 
       setMessages(prev => [...prev, { role: 'model', content: responseText }]);
       
@@ -138,7 +140,7 @@ export default function ChatInterface({ systemInstruction, onSessionEnd, botName
           // Pass the updated history
           const updatedHistory: Message[] = [
             ...messages, 
-            { role: 'user', content: text, image: currentImage || undefined }, 
+            { role: 'user', content: textToSend, image: currentImage || undefined }, 
             { role: 'model', content: responseText }
           ];
           onSessionEnd(updatedHistory);
